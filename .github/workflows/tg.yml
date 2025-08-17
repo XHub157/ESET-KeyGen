@@ -80,13 +80,28 @@ jobs:
       - name: Send key to Telegram
         shell: pwsh
         run: |
-          if ("${{ steps.generate.outputs.key }}") {
-            $MESSAGE = "🔑 Ваш ключ ESET:`n`n${{ steps.generate.outputs.key }}"
-          } else {
-            $MESSAGE = "❌ Не удалось сгенерировать ключ"
-          }
-          
-          curl.exe -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" `
-            -d "chat_id=${{ inputs.user_chat_id }}" `
-            -d "text=$MESSAGE" `
-            -d "parse_mode=Markdown"
+         cd ESET-KeyGen
+         # Извлекаем только блок с ключом
+         $content = Get-Content -Path .\ESET_KEYS.txt -Raw
+         $pattern = 'License Key: (.+)\nLicense Out Date: (.+)\n-+'
+         $match = [regex]::Match($content, $pattern)
+         
+         if ($match.Success) {
+         $licenseKey = $match.Groups[1].Value
+         $expiryDate = $match.Groups[2].Value
+         $MESSAGE = @"
+         🔐 *Ваш ключ ESET*
+         
+         🛡️ Лицензия: *ESET HOME Security Premium*
+         🔑 Ключ: `$licenseKey`
+         📅 Срок действия: $expiryDate
+         "@
+         } else {
+         $MESSAGE = "❌ Не удалось извлечь ключ из файла"
+         }
+         
+         curl.exe -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" `
+         -d "chat_id=${{ inputs.user_chat_id }}" `
+         -d "text=$MESSAGE" `
+         -d "parse_mode=Markdown"
+      
