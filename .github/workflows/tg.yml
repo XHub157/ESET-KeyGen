@@ -43,7 +43,8 @@ jobs:
           python -m venv venv
           .\venv\Scripts\pip install -r requirements.txt
 
-      - name: Generate key
+      - name: Generate keys
+        id: generate
         shell: pwsh
         run: |
           cd ESET-KeyGen
@@ -52,8 +53,11 @@ jobs:
             --skip-update-check --no-logo `
             --disable-progress-bar --disable-logging *>&1
           
-          # Сохраняем вывод для следующего шага
+          # Сохраняем вывод в переменную
           echo "output=$output" >> $env:GITHUB_OUTPUT
+          
+          # Дополнительно сохраняем в файл для отладки
+          echo $output | Out-File -FilePath .\generation_output.txt
 
       - name: Extract and send key
         shell: pwsh
