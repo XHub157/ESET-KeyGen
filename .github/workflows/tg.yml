@@ -1,12 +1,10 @@
 name: ESET Key Generation
 
 on:
-  schedule:
-    - cron: '0 */12 * * *'
   workflow_dispatch:
     inputs:
       mail:
-        description: 'Choose the mail provider'
+        description: 'Mail provider'
         required: true
         type: choice
         options:
@@ -20,96 +18,57 @@ on:
           - emailfake
         default: emailfake
       user_chat_id:
-        description: 'Telegram chat ID for notifications'
+        description: 'Telegram chat ID'
         required: false
 
 jobs:
-  Test:
+  generate:
     runs-on: ubuntu-latest
     steps:
-      - name: 'Checkout Repo'
+      - name: Checkout main repo
         uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: 'Generate key and update the test time'
-        id: generate
+        
+      - name: Setup environment
         run: |
-          ACCOUNT=0
-          KEY=1
-          SMALL_BUSINESS_KEY=1
-          VPN=0
-          EMAIL_API="${{ github.event.inputs.mail }}"
-          if [ -z "$EMAIL_API" ]; then
-            EMAIL_API="emailfake"
-          fi
-          
-          # Сохраняем время начала для отчета
-          echo "start_time=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
-          
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          
-          git clone --depth 1 https://github.com/rzc0d3r/ESET-KeyGen.git
-          cd ESET-KeyGen
-          
-          # Setup env
           sudo apt update
           sudo apt install -y python3-pip python3-venv
           python3 -m venv venv
           source venv/bin/activate
           pip install -r requirements.txt
           
-          # Генерация результатов
-          echo "Test results:" >> $GITHUB_STEP_SUMMARY
-          
-          if [[ ${KEY} != 0 ]]; then
-            for ((attempt=1;attempt<=${KEY};++attempt)); do
-              python3 main.py --auto-detect-browser --key --email-api ${EMAIL_API} --skip-update-check --no-logo --disable-progress-bar --disable-logging
-            done
-            echo -e "\nKeys generated:" >> $GITHUB_STEP_SUMMARY
-            cat ./*KEYS.txt >> $GITHUB_STEP_SUMMARY
-            echo "keys=$(cat ./*KEYS.txt 2>/dev/null || echo 'No keys generated')" >> $GITHUB_OUTPUT
-          fi
-          
-          if [[ ${SMALL_BUSINESS_KEY} != 0 ]]; then
-            for ((attempt=1;attempt<=${SMALL_BUSINESS_KEY};++attempt)); do
-              python3 main.py --auto-detect-browser --small-business-key --email-api ${EMAIL_API} --skip-update-check --no-logo --disable-progress-bar --disable-logging
-            done
-            echo -e "\nSmall Business Keys generated:" >> $GITHUB_STEP_SUMMARY
-            cat ./*KEYS.txt >> $GITHUB_STEP_SUMMARY
-            echo "sb_keys=$(cat ./*KEYS.txt 2>/dev/null || echo 'No business keys generated')" >> $GITHUB_OUTPUT
-          fi
-          
-          cd ${{ github.workspace }}
-          sed -i 's/\(last_test-\)[0-9]\{2\}.[0-9]\{2\}.[0-9]\{4\}_[0-9]\{2\}:[0-9]\{2\}_UTC+3/\1'"$(date -u --date='3 hours' +"%d.%m.%Y_%H:%M_UTC+3")"'/' README.md
-          sudo rm -r ESET-KeyGen
-          git pull
-          git commit -m "Update test time" -a
+          # Download ESET-KeyGen directly
+          wget https://github.com/rzc0d3r/ESET-KeyGen/archive/refs/heads/main.zip
+          unzip main.zip
+          mv ESET-KeyGen-main ESET-KeyGen
+          cd ESET-KeyGen
+          pip install -r requirements.txt
 
-      - name: Push changes to the repo
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ secrets.PAT }}
-          branch: ${{ github.ref }}
-
-      - name: Send results to user
-        if: ${{ inputs.user_chat_id && (steps.generate.outputs.keys || steps.generate.outputs.sb_keys) }}
+      - name: Generate keys
+        id: generate
         run: |
-          MESSAGE="🔑 *Generated ESET Keys*\n\n"
-          MESSAGE+="⏱ *Start Time*: ${{ steps.generate.outputs.start_time }}\n"
-          MESSAGE+="🏁 *End Time*: $(date +'%Y-%m-%d %H:%M:%S')\n\n"
+          cd ESET-KeyGen
+          source ../venv/bin/activate
           
-          if [[ "${{ steps.generate.outputs.keys }}" != "No keys generated" ]]; then
-            MESSAGE+="*Standard Keys*:\n${{ steps.generate.outputs.keys }}\n\n"
+          EMAIL_API="${{ inputs.mail || 'emailfake' }}"
+          
+          # Generate standard key
+          python3 main.py --auto-detect-browser --key --email-api $EMAIL_API \
+            --skip-update-check --no-logo --disable-progress-bar --disable-logging
+          
+          # Get the generated key
+          KEY=$(tail -n 1 ./*KEYS.txt 2>/dev/null || echo "No key generated")
+          echo "key=$KEY" >> $GITHUB_OUTPUT
+
+      - name: Send key to Telegram
+        if: ${{ inputs.user_chat_id }}
+        run: |
+          if [[ "${{ steps.generate.outputs.key }}" != "No key generated" ]]; then
+            curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+              -d "chat_id=${{ inputs.user_chat_id }}" \
+              -d "text=🔑 Ваш ключ ESET:\n\n${{ steps.generate.outputs.key }}" \
+              -d "parse_mode=Markdown"
+          else
+            curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+              -d "chat_id=${{ inputs.user_chat_id }}" \
+              -d "text=❌ Не удалось сгенерировать ключ"
           fi
-          
-          if [[ "${{ steps.generate.outputs.sb_keys }}" != "No business keys generated" ]]; then
-            MESSAGE+="*Business Keys*:\n${{ steps.generate.outputs.sb_keys }}"
-          fi
-          
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -d "chat_id=${{ inputs.user_chat_id }}" \
-            -d "text=$MESSAGE" \
-            -d "parse_mode=Markdown"
