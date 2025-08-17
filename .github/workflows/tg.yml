@@ -20,46 +20,58 @@ on:
       user_chat_id:
         description: 'Telegram chat ID'
         required: true
-      os:
-        description: 'OS'
-        required: true
-        type: string
-        default: windows-latest
 
 jobs:
   generate:
-    runs-on: ${{ inputs.os }}
+    runs-on: windows-latest
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Clone ESET-KeyGen
-        run: git clone -b main https://github.com/XHub157/ESET-KeyGen
-
-      - name: Generate keys
         shell: pwsh
         run: |
-         cd ESET-KeyGen
-         python -m venv venv
-         .\venv\Scripts\Activate.ps1
-         .\venv\Scripts\pip install -r requirements.txt
-         .\venv\Scripts\python main.py --auto-detect-browser --key `
-         --email-api "${{ inputs.mail }}" `
-         --skip-update-check --no-logo `
-         --disable-progress-bar --disable-logging
+          git clone -b main https://github.com/XHub157/ESET-KeyGen
+          cd ESET-KeyGen
+          Get-ChildItem -Recurse | Where-Object { $_.Name -like "*KEYS.txt" } | Remove-Item -Force
+
+      - name: Setup environment
+        shell: pwsh
+        run: |
+          cd ESET-KeyGen
+          python -m venv venv
+          .\venv\Scripts\pip install -r requirements.txt
+
+      - name: Generate keys
+        id: generate
+        shell: pwsh
+        run: |
+          cd ESET-KeyGen
+          .\venv\Scripts\python main.py --auto-detect-browser --key `
+            --email-api "${{ inputs.mail }}" `
+            --skip-update-check --no-logo `
+            --disable-progress-bar --disable-logging
+          
+          # Проверяем создание файла
+          $keyFile = Get-ChildItem -Path . -Filter "*KEYS.txt" | Select-Object -First 1
+          if (-not $keyFile) {
+            Write-Error "Файл с ключами не был создан"
+            exit 1
+          }
+          $KEY = Get-Content -Path $keyFile.FullName -Tail 1
+          echo "key=$KEY" >> $env:GITHUB_OUTPUT
 
       - name: Send key to Telegram
         shell: pwsh
         run: |
-         cd ESET-KeyGen
-         # Получаем последний ключ из файла
-         $KEY = Get-Content -Path .\ESET_KEYS.txt -Tail 1
-         
-         # Формируем сообщение
-         $MESSAGE = "🔑 Ваш ключ ESET:\n\n$KEY"
-         
-         # Отправляем в Telegram
-         curl.exe -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" `
-         -d "chat_id=${{ inputs.user_chat_id }}" `
-         -d "text=$MESSAGE" `
-         -d "parse_mode=Markdown"
+          $KEY = "${{ steps.generate.outputs.key }}"
+          if ([string]::IsNullOrEmpty($KEY)) {
+            $MESSAGE = "❌ Не удалось сгенерировать ключ"
+          } else {
+            $MESSAGE = "🔑 Ваш ключ ESET:`n`n$KEY"
+          }
+          
+          curl.exe -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" `
+            -d "chat_id=${{ inputs.user_chat_id }}" `
+            -d "text=$MESSAGE" `
+            -d "parse_mode=Markdown"
