@@ -37,15 +37,16 @@ jobs:
         run: git clone -b main https://github.com/XHub157/ESET-KeyGen
 
       - name: Generate keys
+        shell: pwsh
         run: |
-          cd ESET-KeyGen
-          python -m venv venv
-          source venv/bin/activate
-          pip install -r requirements.txt
-          python main.py --auto-detect-browser --key \
-            --email-api ${{ inputs.mail }} \
-            --skip-update-check --no-logo \
-            --disable-progress-bar --disable-logging
+         cd ESET-KeyGen
+         python -m venv venv
+         .\venv\Scripts\Activate.ps1
+         .\venv\Scripts\pip install -r requirements.txt
+         .\venv\Scripts\python main.py --auto-detect-browser --key `
+         --email-api "${{ inputs.mail }}" `
+         --skip-update-check --no-logo `
+         --disable-progress-bar --disable-logging
 
       - name: Send key to Telegram
         run: |
