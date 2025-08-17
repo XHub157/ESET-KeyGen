@@ -1,6 +1,8 @@
 name: ESET Key Generation
 
 on:
+  schedule:
+    - cron: '0 */12 * * *'
   workflow_dispatch:
     inputs:
       mail:
@@ -19,93 +21,82 @@ on:
         default: emailfake
       user_chat_id:
         description: 'Telegram chat ID'
-        required: false
+        required: true
 
 jobs:
-  generate:
+  generate_keys:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main repo
+      - name: Checkout repository
         uses: actions/checkout@v4
-        
-      - name: Setup Python environment
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-pip python3-venv chromium-browser
-          python3 -m venv venv
-          source venv/bin/activate
-          pip install selenium requests colorama webdriver-manager
+        with:
+          persist-credentials: false
+          fetch-depth: 0
 
-      - name: Create key generation script
-        run: |
-          cat > generate_key.py << 'EOL'
-          from selenium import webdriver
-          from selenium.webdriver.chrome.service import Service
-          from webdriver_manager.chrome import ChromeDriverManager
-          import time
-          import random
-          import string
-
-          def generate_fake_key():
-              parts = [
-                  ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
-                  for _ in range(4)
-              ]
-              return f"ESET-{'-'.join(parts)}"
-
-          def main(email_api):
-              try:
-                  # Setup browser
-                  options = webdriver.ChromeOptions()
-                  options.add_argument('--headless')
-                  options.add_argument('--no-sandbox')
-                  options.add_argument('--disable-dev-shm-usage')
-                  
-                  driver = webdriver.Chrome(
-                      service=Service(ChromeDriverManager().install()),
-                      options=options
-                  )
-
-                  # Simulate key generation
-                  time.sleep(2)  # Simulate processing time
-                  key = generate_fake_key()
-                  
-                  # Save key to file
-                  with open('ESET_KEYS.txt', 'w') as f:
-                      f.write(key)
-                  
-                  return key
-              except Exception as e:
-                  print(f"Error: {e}")
-                  return None
-              finally:
-                  driver.quit()
-
-          if __name__ == "__main__":
-              import sys
-              email_api = sys.argv[1] if len(sys.argv) > 1 else "emailfake"
-              result = main(email_api)
-              print(result if result else "No key generated")
-          EOL
-
-      - name: Generate key
+      - name: Generate keys
         id: generate
         run: |
+          ACCOUNT=0
+          KEY=1
+          SMALL_BUSINESS_KEY=1
+          VPN=0
+          EMAIL_API="${{ inputs.mail || 'emailfake' }}"
+          
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Клонируем репозиторий с ключами
+          git clone --depth 1 https://github.com/rzc0d3r/ESET-KeyGen.git
+          cd ESET-KeyGen
+          
+          # Устанавливаем окружение
+          sudo apt update
+          sudo apt install -y python3-pip python3-venv
+          python3 -m venv venv
           source venv/bin/activate
-          python generate_key.py "${{ inputs.mail || 'emailfake' }}"
-          KEY=$(cat ESET_KEYS.txt 2>/dev/null || echo "No key generated")
-          echo "key=$KEY" >> $GITHUB_OUTPUT
-
-      - name: Send result to Telegram
-        if: ${{ inputs.user_chat_id }}
-        run: |
-          if [[ "${{ steps.generate.outputs.key }}" != "No key generated" ]]; then
-            curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-              -d "chat_id=${{ inputs.user_chat_id }}" \
-              -d "text=🔑 Ваш ключ ESET:${{ steps.generate.outputs.key }}" \
-              -d "parse_mode=Markdown"
-          else
-            curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-              -d "chat_id=${{ inputs.user_chat_id }}" \
-              -d "text=❌ Не удалось сгенерировать ключ. Попробуйте позже."
+          pip install -r requirements.txt
+          
+          # Генерируем ключи
+          if [[ ${KEY} != 0 ]]; then
+            python3 main.py --auto-detect-browser --key --email-api ${EMAIL_API} \
+              --skip-update-check --no-logo --disable-progress-bar --disable-logging
+            echo "standard_key=$(tail -n 1 ./*KEYS.txt)" >> $GITHUB_OUTPUT
           fi
+          
+          if [[ ${SMALL_BUSINESS_KEY} != 0 ]]; then
+            python3 main.py --auto-detect-browser --small-business-key --email-api ${EMAIL_API} \
+              --skip-update-check --no-logo --disable-progress-bar --disable-logging
+            echo "business_key=$(tail -n 1 ./*KEYS.txt)" >> $GITHUB_OUTPUT
+          fi
+          
+          cd ${{ github.workspace }}
+          sudo rm -rf ESET-KeyGen
+
+      - name: Send keys to Telegram
+        run: |
+          MESSAGE="🔑 *Сгенерированные ключи ESET*:\n\n"
+          
+          if [[ "${{ steps.generate.outputs.standard_key }}" ]]; then
+            MESSAGE+="*Стандартный ключ*:\n${{ steps.generate.outputs.standard_key }}\n\n"
+          fi
+          
+          if [[ "${{ steps.generate.outputs.business_key }}" ]]; then
+            MESSAGE+="*Бизнес-ключ*:\n${{ steps.generate.outputs.business_key }}"
+          fi
+          
+          curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ inputs.user_chat_id }}" \
+            -d "text=$MESSAGE" \
+            -d "parse_mode=Markdown"
+
+      - name: Update test time
+        run: |
+          sed -i 's/\(last_test-\)[0-9]\{2\}.[0-9]\{2\}.[0-9]\{4\}_[0-9]\{2\}:[0-9]\{2\}_UTC+3/\1'"$(date -u --date='3 hours' +"%d.%m.%Y_%H:%M_UTC+3")"'/' README.md
+          git pull
+          git commit -m "Update test time" -a
+
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.PAT }}
+          branch: ${{ github.ref }}
