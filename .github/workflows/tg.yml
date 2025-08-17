@@ -20,6 +20,24 @@ on:
       user_chat_id:
         description: 'Telegram chat ID'
         required: true
+      account:
+        description: 'Number of accounts'
+        required: true
+        type: string
+        default: '0'
+      key:
+        description: 'Number of keys'
+        required: true
+        type: string
+        default: '1'
+      key_type:
+        description: 'Key type'
+        required: true
+        type: choice
+        options:
+          - --key
+          - --small-business-key
+        default: --key
 
 jobs:
   generate:
@@ -33,7 +51,7 @@ jobs:
         run: |
           git clone -b main https://github.com/XHub157/ESET-KeyGen
           cd ESET-KeyGen
-          Get-ChildItem -Recurse | Where-Object { $_.Name -like "*KEYS.txt" } | Remove-Item -Force
+          Remove-Item -Path .\*KEYS.txt -ErrorAction SilentlyContinue
 
       - name: Setup environment
         shell: pwsh
@@ -47,28 +65,25 @@ jobs:
         shell: pwsh
         run: |
           cd ESET-KeyGen
-          .\venv\Scripts\python main.py --auto-detect-browser --key `
+          .\venv\Scripts\python main.py --auto-detect-browser ${{ inputs.key_type }} `
             --email-api "${{ inputs.mail }}" `
             --skip-update-check --no-logo `
-            --disable-progress-bar --disable-logging
+            --disable-progress-bar --disable-logging `
+            --repeat ${{ inputs.key }}
           
-          # Проверяем создание файла
           $keyFile = Get-ChildItem -Path . -Filter "*KEYS.txt" | Select-Object -First 1
-          if (-not $keyFile) {
-            Write-Error "Файл с ключами не был создан"
-            exit 1
+          if ($keyFile) {
+            $KEY = Get-Content -Path $keyFile.FullName -Tail 1
+            echo "key=$KEY" >> $env:GITHUB_OUTPUT
           }
-          $KEY = Get-Content -Path $keyFile.FullName -Tail 1
-          echo "key=$KEY" >> $env:GITHUB_OUTPUT
 
       - name: Send key to Telegram
         shell: pwsh
         run: |
-          $KEY = "${{ steps.generate.outputs.key }}"
-          if ([string]::IsNullOrEmpty($KEY)) {
-            $MESSAGE = "❌ Не удалось сгенерировать ключ"
+          if ("${{ steps.generate.outputs.key }}") {
+            $MESSAGE = "🔑 Ваш ключ ESET:`n`n${{ steps.generate.outputs.key }}"
           } else {
-            $MESSAGE = "🔑 Ваш ключ ESET:`n`n$KEY"
+            $MESSAGE = "❌ Не удалось сгенерировать ключ"
           }
           
           curl.exe -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" `
