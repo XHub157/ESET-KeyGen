@@ -20,6 +20,7 @@ on:
       user_chat_id:
         description: 'Telegram chat ID'
         required: true
+    # Убраны все лишние параметры
 
 jobs:
   generate:
@@ -33,7 +34,6 @@ jobs:
         run: |
           git clone -b main https://github.com/XHub157/ESET-KeyGen
           cd ESET-KeyGen
-          # Очищаем предыдущие файлы
           Remove-Item -Path .\*KEYS.txt -ErrorAction SilentlyContinue
 
       - name: Setup environment
@@ -43,8 +43,7 @@ jobs:
           python -m venv venv
           .\venv\Scripts\pip install -r requirements.txt
 
-      - name: Generate keys
-        id: generate
+      - name: Generate key
         shell: pwsh
         run: |
           cd ESET-KeyGen
@@ -53,36 +52,21 @@ jobs:
             --skip-update-check --no-logo `
             --disable-progress-bar --disable-logging *>&1
           
-          # Сохраняем вывод в переменную
+          # Сохраняем вывод для следующего шага
           echo "output=$output" >> $env:GITHUB_OUTPUT
-          
-          # Дополнительно сохраняем в файл для отладки
-          echo $output | Out-File -FilePath .\generation_output.txt
 
-      - name: Find and send key
+      - name: Extract and send key
         shell: pwsh
         run: |
-          cd ESET-KeyGen
-          
-          # Ищем ключ в выводе
-          $content = Get-Content -Path .\generation_output.txt -Raw -ErrorAction SilentlyContinue
-          if (-not $content) {
-            $content = "${{ steps.generate.outputs.output }}"
-          }
-          
-          $pattern = 'License Key: (.+?)\s'
+          # Извлекаем ключ из вывода
+          $content = "${{ steps.generate.outputs.output }}"
+          $pattern = 'License Key: ([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})'
           $match = [regex]::Match($content, $pattern)
           
           if ($match.Success) {
-            $licenseKey = $match.Groups[1].Value
-            $MESSAGE = @"
-          🔐 *Ваш ключ ESET*
-          
-          🛡️ Продукт: ESET Smart Security Premium
-          🔑 Ключ: `$licenseKey`
-          "@
+            $MESSAGE = "🔑 Ваш ключ ESET:\n\n`$($match.Groups[1].Value)`"
           } else {
-            $MESSAGE = "❌ Не удалось найти ключ в выводе генератора"
+            $MESSAGE = "❌ Не удалось извлечь ключ из вывода генератора"
             # Для отладки
             echo "Полный вывод генератора:"
             echo $content
