@@ -52,44 +52,32 @@ jobs:
             --skip-update-check --no-logo `
             --disable-progress-bar --disable-logging *>&1 | Out-String
           
-          # Сохраняем вывод в переменную
-          echo "output=$output" >> $env:GITHUB_OUTPUT
-          
-          # Дополнительно сохраняем в файл для отладки
+          # Сохраняем вывод в файл
           $output | Out-File -FilePath .\generation_output.txt -Encoding utf8
+          
+          # Извлекаем ключ и сохраняем в переменную
+          $keyMatch = [regex]::Match($output, 'License Name: ESET HOME Security Premium License Key: ([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})')
+          if ($keyMatch.Success) {
+              echo "LICENSE_KEY=$($keyMatch.Groups[1].Value)" >> $env:GITHUB_ENV
+          }
 
       - name: Extract and send key
         shell: pwsh
         run: |
-          # Получаем вывод из предыдущего шага
-          $content = "${{ steps.generate.outputs.output }}"
-          
-          # Проверяем, что вывод не пустой
-          if ([string]::IsNullOrEmpty($content)) {
-              Write-Output "::error::Вывод генератора пуст"
+          # Проверяем наличие ключа
+          if (-not $env:LICENSE_KEY) {
+              Write-Output "::error::Не удалось извлечь ключ из вывода"
               exit 1
           }
           
-          # Ищем ключ после конкретной строки
-          $keyMatch = [regex]::Match($content, 'License Name: ESET HOME Security Premium License Key: ([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})')
+          # Формируем сообщение
+          $messageText = "Ваш ключ ESET:\n\n``$env:LICENSE_KEY``"
           
-          if ($keyMatch.Success) {
-              # Формируем сообщение с ключом (экранируем спецсимволы для Markdown)
-              $licenseKey = $keyMatch.Groups[1].Value
-              $messageText = "Ваш ключ ESET:\n\n``$licenseKey``"
-          } else {
-              # Если ключ не найден, показываем часть вывода для отладки
-              $messageText = "Ошибка: не удалось найти ключ в выводе. Последние 200 символов вывода:\n``$($content.Substring([math]::Max(0, $content.Length - 200)))``"
-          }
-          
-          # Кодируем текст сообщения для URL
-          $encodedText = [System.Web.HttpUtility]::UrlEncode($messageText)
-          
-          # Отправляем сообщение через curl (используем правильный синтаксис для PowerShell)
+          # Отправляем в Telegram
           $telegramUrl = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
           $chatId = "${{ inputs.user_chat_id }}"
           
           curl.exe -X POST $telegramUrl `
             -d "chat_id=$chatId" `
-            -d "text=$encodedText" `
+            -d "text=$([System.Web.HttpUtility]::UrlEncode($messageText))" `
             -d "parse_mode=Markdown"
