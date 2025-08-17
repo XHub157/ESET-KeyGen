@@ -58,21 +58,32 @@ jobs:
       - name: Extract and send key
         shell: pwsh
         run: |
-          # Извлекаем ключ из вывода
-          $content = "${{ steps.generate.outputs.output }}"
-          $pattern = 'License Key: ([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})'
-          $match = [regex]::Match($content, $pattern)
-          
-          if ($match.Success) {
-            $MESSAGE = "🔑 Ваш ключ ESET:\n\n`$($match.Groups[1].Value)`"
-          } else {
-            $MESSAGE = "❌ Не удалось извлечь ключ из вывода генератора"
-            # Для отладки
-            echo "Полный вывод генератора:"
-            echo $content
-          }
-          
-          curl.exe -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" `
-            -d "chat_id=${{ inputs.user_chat_id }}" `
-            -d "text=$MESSAGE" `
-            -d "parse_mode=Markdown"
+         # Получаем вывод из предыдущего шага
+         $content = "${{ steps.generate.outputs.output }}"
+         
+         # Проверяем, что вывод не пустой
+         if ([string]::IsNullOrEmpty($content)) {
+         Write-Output "::error::Вывод генератора пуст"
+         exit 1
+         }
+         
+         # Ищем ключ в выводе
+         $keyMatch = [regex]::Match($content, 'License Key: ([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})')
+         
+         if ($keyMatch.Success) {
+         # Формируем сообщение без emoji (чтобы избежать проблем с кодировкой)
+         $messageText = "Ваш ключ ESET:`n`n$($keyMatch.Groups[1].Value)"
+         } else {
+         # Если ключ не найден, показываем часть вывода для отладки
+         $messageText = "Ошибка: не удалось найти ключ в выводе. Последние 200 символов вывода:`n$($content.Substring([math]::Max(0, $content.Length - 200)))"
+         }
+         
+         # Отправляем сообщение через curl
+         $curlCommand = @"
+         curl.exe -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" ^
+         -d "chat_id=${{ inputs.user_chat_id }}" ^
+         -d "text=$messageText" ^
+         -d "parse_mode=Markdown"
+         "@
+         
+         Invoke-Expression -Command $curlCommand
