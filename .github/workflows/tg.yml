@@ -47,37 +47,59 @@ jobs:
         shell: pwsh
         run: |
           cd ESET-KeyGen
-          $output = .\venv\Scripts\python main.py --auto-detect-browser --key `
+          $outputFile = ".\output.txt"
+          .\venv\Scripts\python main.py --auto-detect-browser --key `
             --email-api "${{ inputs.mail }}" `
             --skip-update-check --no-logo `
-            --disable-progress-bar --disable-logging *>&1 | Out-String
+            --disable-progress-bar --disable-logging *>&1 > $outputFile
           
-          # Сохраняем вывод в файл
-          $output | Out-File -FilePath .\generation_output.txt -Encoding utf8
+          # Получаем последние 30 строк вывода
+          $lastLines = Get-Content $outputFile | Select-Object -Last 30
+          $content = $lastLines -join "`n"
           
-          # Извлекаем ключ и сохраняем в переменную
-          $keyMatch = [regex]::Match($output, 'License Name: ESET HOME Security Premium License Key: ([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})')
-          if ($keyMatch.Success) {
-              echo "LICENSE_KEY=$($keyMatch.Groups[1].Value)" >> $env:GITHUB_ENV
+          # Ищем ключ в нескольких возможных форматах
+          $patterns = @(
+              'License Key: ([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})',
+              'License Key: ([A-Z0-9]{15})',
+              'Key: ([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})'
+          )
+          
+          $licenseKey = $null
+          foreach ($pattern in $patterns) {
+              $match = [regex]::Match($content, $pattern)
+              if ($match.Success) {
+                  $licenseKey = $match.Groups[1].Value
+                  break
+              }
           }
-
-      - name: Extract and send key
-        shell: pwsh
-        run: |
-          # Проверяем наличие ключа
-          if (-not $env:LICENSE_KEY) {
-              Write-Output "::error::Не удалось извлечь ключ из вывода"
+          
+          if ($licenseKey) {
+              echo "LICENSE_KEY=$licenseKey" >> $env:GITHUB_ENV
+              echo "Found license key: $licenseKey"
+          } else {
+              echo "::error::License key not found in output"
+              echo "Last 30 lines of output:"
+              echo $content
               exit 1
           }
+
+      - name: Send key to Telegram
+        if: success()
+        shell: pwsh
+        run: |
+          $messageText = @"
+          Ваш ключ ESET:
           
-          # Формируем сообщение
-          $messageText = "Ваш ключ ESET:\n\n``$env:LICENSE_KEY``"
+          ``$env:LICENSE_KEY``
           
-          # Отправляем в Telegram
-          $telegramUrl = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
-          $chatId = "${{ inputs.user_chat_id }}"
+          Сгенерировано: $(Get-Date -Format 'dd.MM.yyyy HH:mm')
+           "@
           
-          curl.exe -X POST $telegramUrl `
-            -d "chat_id=$chatId" `
-            -d "text=$([System.Web.HttpUtility]::UrlEncode($messageText))" `
-            -d "parse_mode=Markdown"
+          $url = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
+          $body = @{
+              chat_id = "${{ inputs.user_chat_id }}"
+              text = $messageText
+              parse_mode = "Markdown"
+          }
+          
+          Invoke-RestMethod -Uri $url -Method Post -Body $body
