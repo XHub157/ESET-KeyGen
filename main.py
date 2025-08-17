@@ -557,7 +557,6 @@ def main(disable_exit=False):
                 ER_obj.confirmAccount()
                 output_line = '\n'.join([
                     '',
-                    '-------------------------------------------------',
                     '}{ :liamE tnuoccA'[::-1].format(email_obj.email),
                     '}{ :drowssaP tnuoccA'[::-1].format(e_passwd),
                     '-------------------------------------------------',
@@ -571,7 +570,6 @@ def main(disable_exit=False):
                     l_name, l_key, l_out_date = EK_obj.getLD()
                     output_line = '\n'.join([
                         '',
-                        '-------------------------------------------------',
                         '}{ :liamE tnuoccA'[::-1].format(email_obj.email),
                         '}{ :drowssaP tnuoccA'[::-1].format(e_passwd),
                         '',
@@ -610,7 +608,6 @@ def main(disable_exit=False):
                 EPHR_obj.activateAccount()
                 output_line = '\n'.join([
                     '',
-                    '---------------------------------------------------------------------',
                     '}{ :liamE tnuoccA buHtcetorP TESE'[::-1].format(email_obj.email),
                     '}{ :drowssaP tnuoccA buHtcetorP TESE'[::-1].format(e_passwd),
                     '---------------------------------------------------------------------',
@@ -624,7 +621,6 @@ def main(disable_exit=False):
                     if l_name is not None:
                         output_line = '\n'.join([
                             '',
-                            '---------------------------------------------------------------------',
                             '}{ :liamE tnuoccA buHtcetorP TESE'[::-1].format(email_obj.email),
                             '}{ :drowssaP tnuoccA buHtcetorP TESE'[::-1].format(e_passwd),
                             '',
@@ -751,3 +747,4 @@ if __name__ == '__main__':
                     main(disable_exit=True)
             except KeyboardInterrupt:
                 exit_program(0, DRIVER)
+
