@@ -43,7 +43,7 @@ jobs:
           source venv/bin/activate
           pip install -r requirements.txt
           python main.py --auto-detect-browser --key \
-            --email-api "${{ inputs.mail }}" \
+            --email-api ${{ inputs.mail }} \
             --skip-update-check --no-logo \
             --disable-progress-bar --disable-logging
 
