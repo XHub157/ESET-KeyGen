@@ -71,11 +71,11 @@ jobs:
          exit 1
          }
          
-         # Ищем ключ в выводе
-         $keyMatch = [regex]::Match($content, 'License Key: ([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})')
+         # Ищем ключ после конкретной строки
+         $keyMatch = [regex]::Match($content, 'License Name: ESET HOME Security Premium License Key: ([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})')
          
          if ($keyMatch.Success) {
-         # Формируем сообщение без emoji (чтобы избежать проблем с кодировкой)
+         # Формируем сообщение с ключом
          $messageText = "Ваш ключ ESET:`n`n$($keyMatch.Groups[1].Value)"
          } else {
          # Если ключ не найден, показываем часть вывода для отладки
