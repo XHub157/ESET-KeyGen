@@ -20,24 +20,6 @@ on:
       user_chat_id:
         description: 'Telegram chat ID'
         required: true
-      account:
-        description: 'Number of accounts'
-        required: true
-        type: string
-        default: '0'
-      key:
-        description: 'Number of keys'
-        required: true
-        type: string
-        default: '1'
-      key_type:
-        description: 'Key type'
-        required: true
-        type: choice
-        options:
-          - --key
-          - --small-business-key
-        default: --key
 
 jobs:
   generate:
@@ -51,6 +33,7 @@ jobs:
         run: |
           git clone -b main https://github.com/XHub157/ESET-KeyGen
           cd ESET-KeyGen
+          # Очищаем предыдущие файлы
           Remove-Item -Path .\*KEYS.txt -ErrorAction SilentlyContinue
 
       - name: Setup environment
@@ -65,43 +48,50 @@ jobs:
         shell: pwsh
         run: |
           cd ESET-KeyGen
-          .\venv\Scripts\python main.py --auto-detect-browser ${{ inputs.key_type }} `
+          $output = .\venv\Scripts\python main.py --auto-detect-browser --key `
             --email-api "${{ inputs.mail }}" `
             --skip-update-check --no-logo `
-            --disable-progress-bar --disable-logging `
-            --repeat ${{ inputs.key }}
+            --disable-progress-bar --disable-logging *>&1
           
-          $keyFile = Get-ChildItem -Path . -Filter "*KEYS.txt" | Select-Object -First 1
-          if ($keyFile) {
-            $KEY = Get-Content -Path $keyFile.FullName -Tail 1
-            echo "key=$KEY" >> $env:GITHUB_OUTPUT
-          }
+          # Сохраняем вывод в переменную
+          echo "output=$output" >> $env:GITHUB_OUTPUT
+          
+          # Дополнительно сохраняем в файл для отладки
+          echo $output | Out-File -FilePath .\generation_output.txt
 
-      - name: Send key to Telegram
+      - name: Find and send key
         shell: pwsh
         run: |
-         cd ESET-KeyGen
-         # Извлекаем только блок с ключом
-         $content = Get-Content -Path .\ESET_KEYS.txt -Raw
-         $pattern = 'License Key: (.+)\nLicense Out Date: (.+)\n-+'
-         $match = [regex]::Match($content, $pattern)
-         
-         if ($match.Success) {
-         $licenseKey = $match.Groups[1].Value
-         $expiryDate = $match.Groups[2].Value
-         $MESSAGE = @"
-         🔐 *Ваш ключ ESET*
-         
-         🛡️ Лицензия: *ESET HOME Security Premium*
-         🔑 Ключ: `$licenseKey`
-         📅 Срок действия: $expiryDate
-         "@
-         } else {
-         $MESSAGE = "❌ Не удалось извлечь ключ из файла"
-         }
-         
-         curl.exe -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" `
-         -d "chat_id=${{ inputs.user_chat_id }}" `
-         -d "text=$MESSAGE" `
-         -d "parse_mode=Markdown"
-      
+          cd ESET-KeyGen
+          
+          # Ищем ключ в выводе
+          $content = Get-Content -Path .\generation_output.txt -Raw -ErrorAction SilentlyContinue
+          if (-not $content) {
+            $content = "${{ steps.generate.outputs.output }}"
+          }
+          
+          $pattern = 'License Key: (.+?)\s'
+          $match = [regex]::Match($content, $pattern)
+          
+          if ($match.Success) {
+            $licenseKey = $match.Groups[1].Value
+            $MESSAGE = @"
+🔐 *Ваш ключ ESET*
+
+🛡️ Продукт: ESET HOME Security Premium
+🔑 Ключ: `$licenseKey`
+📅 Срок действия: 1 год
+
+_Для активации используйте официальный сайт ESET_
+"@
+          } else {
+            $MESSAGE = "❌ Не удалось найти ключ в выводе генератора"
+            # Для отладки
+            echo "Полный вывод генератора:"
+            echo $content
+          }
+          
+          curl.exe -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" `
+            -d "chat_id=${{ inputs.user_chat_id }}" `
+            -d "text=$MESSAGE" `
+            -d "parse_mode=Markdown"
