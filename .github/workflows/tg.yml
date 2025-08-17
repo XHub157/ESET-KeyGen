@@ -87,13 +87,8 @@ jobs:
         if: success()
         shell: pwsh
         run: |
-          $messageText = @"
-          Ваш ключ ESET:
-          
-          ``$env:LICENSE_KEY``
-          
-          Сгенерировано: $(Get-Date -Format 'dd.MM.yyyy HH:mm')
-           "@
+          # Формируем сообщение без here-string для надежности
+          $messageText = "Ваш ключ ESET:`n`n``$env:LICENSE_KEY```n`nСгенерировано: $(Get-Date -Format 'dd.MM.yyyy HH:mm')"
           
           $url = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
           $body = @{
@@ -102,4 +97,10 @@ jobs:
               parse_mode = "Markdown"
           }
           
-          Invoke-RestMethod -Uri $url -Method Post -Body $body
+          try {
+              $response = Invoke-RestMethod -Uri $url -Method Post -Body $body -ErrorAction Stop
+              Write-Output "Message sent successfully: $($response.ok)"
+          } catch {
+              Write-Output "::error::Failed to send message: $_"
+              exit 1
+          }
