@@ -102,7 +102,7 @@ jobs:
           if [[ "${{ steps.generate.outputs.key }}" != "No key generated" ]]; then
             curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
               -d "chat_id=${{ inputs.user_chat_id }}" \
-              -d "text=🔑 Ваш ключ ESET:\n\n${{ steps.generate.outputs.key }}" \
+              -d "text=🔑 Ваш ключ ESET:${{ steps.generate.outputs.key }}" \
               -d "parse_mode=Markdown"
           else
             curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
