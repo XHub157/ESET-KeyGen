@@ -28,22 +28,23 @@ jobs:
       - name: Checkout main repo
         uses: actions/checkout@v4
         
-      - name: Setup environment
+      - name: Setup Python environment
         run: |
-          sudo apt update
-          sudo apt install -y python3-pip python3-venv
+          sudo apt-get update
+          sudo apt-get install -y python3-pip python3-venv
           python3 -m venv venv
           source venv/bin/activate
-          pip install -r requirements.txt
-          
-          # Download ESET-KeyGen directly
-          wget https://github.com/rzc0d3r/ESET-KeyGen/archive/refs/heads/main.zip
-          unzip main.zip
-          mv ESET-KeyGen-main ESET-KeyGen
-          cd ESET-KeyGen
-          pip install -r requirements.txt
+          pip install selenium requests colorama
 
-      - name: Generate keys
+      - name: Download ESET-KeyGen files directly
+        run: |
+          mkdir ESET-KeyGen
+          cd ESET-KeyGen
+          wget https://raw.githubusercontent.com/rzc0d3r/ESET-KeyGen/main/main.py
+          wget https://raw.githubusercontent.com/rzc0d3r/ESET-KeyGen/main/requirements.txt
+          wget https://raw.githubusercontent.com/rzc0d3r/ESET-KeyGen/main/README.md
+
+      - name: Generate key
         id: generate
         run: |
           cd ESET-KeyGen
@@ -51,15 +52,15 @@ jobs:
           
           EMAIL_API="${{ inputs.mail || 'emailfake' }}"
           
-          # Generate standard key
+          # Generate single key
           python3 main.py --auto-detect-browser --key --email-api $EMAIL_API \
             --skip-update-check --no-logo --disable-progress-bar --disable-logging
           
-          # Get the generated key
-          KEY=$(tail -n 1 ./*KEYS.txt 2>/dev/null || echo "No key generated")
+          # Extract the generated key
+          KEY=$(grep -o 'ESET-[A-Z0-9]*-[A-Z0-9]*-[A-Z0-9]*-[A-Z0-9]*' ./*KEYS.txt | tail -n 1 || echo "No key generated")
           echo "key=$KEY" >> $GITHUB_OUTPUT
 
-      - name: Send key to Telegram
+      - name: Send result to Telegram
         if: ${{ inputs.user_chat_id }}
         run: |
           if [[ "${{ steps.generate.outputs.key }}" != "No key generated" ]]; then
@@ -70,5 +71,5 @@ jobs:
           else
             curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
               -d "chat_id=${{ inputs.user_chat_id }}" \
-              -d "text=❌ Не удалось сгенерировать ключ"
+              -d "text=❌ Не удалось сгенерировать ключ. Попробуйте позже."
           fi
