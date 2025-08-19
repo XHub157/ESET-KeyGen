@@ -88,7 +88,7 @@ jobs:
         shell: pwsh
         run: |
           # Формируем сообщение без here-string для надежности
-          $messageText = "Ваш ключ ESET:`n`n``$env:LICENSE_KEY```n`nСгенерировано: $(Get-Date -Format 'dd.MM.yyyy')"
+          $messageText = "Ваш ключ ESET:`n`n``$env:LICENSE_KEY```n`nСгенерировано: $(Get-Date -Format 'dd.MM.yyyy')`nКанал разработчика: https://t.me/+dWUZ-P-rNo83NTMy"
           
           $url = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
           $body = @{
