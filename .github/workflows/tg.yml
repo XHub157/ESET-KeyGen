@@ -94,7 +94,7 @@ jobs:
           $body = @{
               chat_id = "${{ inputs.user_chat_id }}"
               text = $messageText
-              parse_mode = "Markdown"
+              parse_mode = "MarkdownV2"
           }
           
           try {
