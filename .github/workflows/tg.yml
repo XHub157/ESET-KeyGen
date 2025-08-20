@@ -51,7 +51,7 @@ jobs:
           .\venv\Scripts\python main.py --auto-detect-browser --key `
             --email-api "${{ inputs.mail }}" `
             --skip-update-check --no-logo `
-            *>&1 > $outputFile
+            --disable-progress-bar --disable-logging *>&1 > $outputFile
           
           # Получаем последние 30 строк вывода
           $lastLines = Get-Content $outputFile | Select-Object -Last 30
