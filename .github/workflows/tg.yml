@@ -83,23 +83,24 @@ jobs:
               exit 1
           }
 
-      - name: Send key to Telegram
-        if: success()
-        shell: pwsh
-        run: |
-          # Формируем сообщение без here-string для надежности
-          $messageText = "Ваш ключ ESET Smart Security Premium:`n`n``$env:LICENSE_KEY```n`nСгенерировано: $(Get-Date -Format 'dd.MM.yyyy')`nКанал разработчика: @EsetForYou`nКанал спонсора: @keys_eset2020"
-          
-          $url = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
-          $body = @{
-              chat_id = "${{ inputs.user_chat_id }}"
-              text = $messageText
-          }
-          
-          try {
-              $response = Invoke-RestMethod -Uri $url -Method Post -Body $body -ErrorAction Stop
-              Write-Output "Message sent successfully: $($response.ok)"
-          } catch {
-              Write-Output "::error::Failed to send message: $_"
-              exit 1
-          }
+          - name: Send key to Telegram
+          if: success()
+          shell: pwsh
+    run: |
+    # Формируем сообщение с кодом в отдельном блоке
+    $messageText = "Ваш ключ ESET Smart Security Premium:`n`n<code>$env:LICENSE_KEY</code>`n`nСгенерировано: $(Get-Date -Format 'dd.MM.yyyy')`nКанал разработчика: @EsetForYou`nКанал спонсора: @keys_eset2020"
+    
+    $url = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
+    $body = @{
+        chat_id = "${{ inputs.user_chat_id }}"
+        text = $messageText
+        parse_mode = "HTML"
+    }
+    
+    try {
+        $response = Invoke-RestMethod -Uri $url -Method Post -Body $body -ErrorAction Stop
+        Write-Output "Message sent successfully: $($response.ok)"
+    } catch {
+        Write-Output "::error::Failed to send message: $_"
+        exit 1
+    }
