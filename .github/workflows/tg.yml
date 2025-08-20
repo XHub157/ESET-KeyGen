@@ -92,20 +92,17 @@ jobs:
           
           $url = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
           
-          # Создаем клавиатуру с кнопкой
-          $keyboard = @{
-              inline_keyboard = @(
-                  @(
-                      @{
-                          text = "Сказать спасибо🙏"
-                          url = "https://t.me/+wnr6bruMFitmM2Zi"
-                      }
-                  )
-              )
-          }
-          
-          # Конвертируем клавиатуру в JSON
-          $replyMarkup = $keyboard | ConvertTo-Json -Compress
+          # Правильное формирование клавиатуры в формате JSON
+          $replyMarkup = '{
+            "inline_keyboard": [
+              [
+                {
+                  "text": "Сказать спасибо🙏",
+                  "url": "https://t.me/+wnr6bruMFitmM2Zi"
+                }
+              ]
+            ]
+          }'
           
           $body = @{
               chat_id = "${{ inputs.user_chat_id }}"
