@@ -1,0 +1,169 @@
+name: ESET Key Generator 10
+
+on:
+  workflow_dispatch:
+    inputs:
+      mail:
+        description: 'Mail provider'
+        required: true
+        type: choice
+        options:
+          - 1secmail
+          - guerrillamail
+          - developermail
+          - mailticking
+          - fakemail
+          - inboxes
+          - incognitomail
+          - emailfake
+        default: emailfake
+      user_chat_id:
+        description: 'Telegram chat ID'
+        required: true
+
+jobs:
+  generate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Clone ESET-KeyGen
+        shell: pwsh
+        run: |
+          git clone -b main https://github.com/XHub157/ESET-KeyGen
+          cd ESET-KeyGen
+          Remove-Item -Path .\*KEYS.txt -ErrorAction SilentlyContinue
+
+      - name: Setup environment
+        shell: pwsh
+        run: |
+          cd ESET-KeyGen
+          python -m venv venv
+          .\venv\Scripts\pip install -r requirements.txt
+
+      - name: Generate 10 keys
+        id: generate
+        shell: pwsh
+        run: |
+          cd ESET-KeyGen
+          $allKeys = @()
+          
+          # Генерируем 10 ключей
+          for ($i = 1; $i -le 10; $i++) {
+              Write-Output "Генерация ключа #$i"
+              
+              $outputFile = ".\output_$i.txt"
+              .\venv\Scripts\python main.py --auto-detect-browser --key `
+                --email-api "${{ inputs.mail }}" `
+                --skip-update-check --no-logo `
+                --disable-progress-bar --disable-logging *>&1 > $outputFile
+              
+              # Получаем последние 30 строк вывода
+              $lastLines = Get-Content $outputFile | Select-Object -Last 30
+              $content = $lastLines -join "`n"
+              
+              # Ищем ключ в нескольких возможных форматах
+              $patterns = @(
+                  'License Key: ([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})',
+                  'License Key: ([A-Z0-9]{15})',
+                  'Key: ([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})'
+              )
+              
+              $licenseKey = $null
+              foreach ($pattern in $patterns) {
+                  $match = [regex]::Match($content, $pattern)
+                  if ($match.Success) {
+                      $licenseKey = $match.Groups[1].Value
+                      break
+                  }
+              }
+              
+              if ($licenseKey) {
+                  Write-Output "Найден ключ #$i: $licenseKey"
+                  $allKeys += $licenseKey
+              } else {
+                  Write-Output "::error::Ключ #$i не найден в выводе"
+                  Write-Output "Последние 30 строк вывода:"
+                  Write-Output $content
+                  # Продолжаем генерацию остальных ключей вместо выхода
+                  continue
+              }
+              
+              # Небольшая пауза между генерациями
+              Start-Sleep -Seconds 2
+          }
+          
+          # Сохраняем все ключи в переменную
+          if ($allKeys.Count -gt 0) {
+              $keysJson = $allKeys | ConvertTo-Json -Compress
+              echo "ALL_KEYS=$keysJson" >> $env:GITHUB_ENV
+              echo "TOTAL_KEYS=$($allKeys.Count)" >> $env:GITHUB_ENV
+              Write-Output "Успешно сгенерировано ключей: $($allKeys.Count)"
+          } else {
+              echo "::error::Не удалось сгенерировать ни одного ключа"
+              exit 1
+          }
+
+      - name: Send keys to Telegram
+        if: success()
+        shell: pwsh
+        run: |
+          # Преобразуем JSON обратно в массив
+          $keysArray = $env:ALL_KEYS | ConvertFrom-Json
+          $totalKeys = $env:TOTAL_KEYS
+          
+          # Формируем красивое сообщение со всеми ключами
+          $messageText = "✅ *Успешно сгенерировано $totalKeys ключей ESET Smart Security Premium:*`n`n"
+          
+          $counter = 1
+          foreach ($key in $keysArray) {
+              $messageText += "`<code\>$key\</code\>`n`n"
+              $counter++
+          }
+          
+          $messageText += "📅 *Сгенерировано:* $(Get-Date -Format 'dd.MM.yyyy HH:mm')`n"
+          $messageText += "📢 *Канал разработчика:* @EsetForYou`n"
+          $messageText += "🌟 *Канал спонсора:* @keys_eset2020`n`"
+          
+          $url = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
+          
+          # Клавиатура с кнопкой благодарности
+          $replyMarkup = '{
+            "inline_keyboard": [
+              [
+                {
+                  "text": "🙏 Сказать спасибо",
+                  "url": "https://t.me/+wnr6bruMFitmM2Zi"
+                }
+              ]
+            ]
+          }'
+          
+          $body = @{
+              chat_id = "${{ inputs.user_chat_id }}"
+              text = $messageText
+              parse_mode = "HTML"
+              reply_markup = $replyMarkup
+          }
+          
+          try {
+              $response = Invoke-RestMethod -Uri $url -Method Post -Body $body -ErrorAction Stop
+              Write-Output "Сообщение с $totalKeys ключами успешно отправлено!"
+          } catch {
+              Write-Output "::error::Ошибка при отправке сообщения: $_"
+              
+              # Дополнительно выводим ключи в консоль на случай ошибки Telegram
+              Write-Output "Сгенерированные ключи:"
+              $keysArray | ForEach-Object { Write-Output "Ключ: $_" }
+              
+              exit 1
+          }
+
+      - name: Cleanup generated files
+        if: always()
+        shell: pwsh
+        run: |
+          cd ESET-KeyGen
+          Remove-Item -Path .\output_*.txt -ErrorAction SilentlyContinue
+          Write-Output "Временные файлы очищены"
