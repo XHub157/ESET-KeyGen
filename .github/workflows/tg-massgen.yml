@@ -1,4 +1,4 @@
-name: ESET Key Generator 10
+name: ESET Mass Key Generator
 
 on:
   workflow_dispatch:
@@ -17,7 +17,7 @@ on:
           - incognitomail
           - emailfake
         default: emailfake
-      count:
+      key_count:
         description: 'Number of keys to generate (1-10)'
         required: true
         type: choice
@@ -32,7 +32,7 @@ on:
            - 8
            - 9
            - 10
-        default: '10'
+        default: '1'
       user_chat_id:
         description: 'Telegram chat ID'
         required: true
@@ -58,17 +58,16 @@ jobs:
           python -m venv venv
           .\venv\Scripts\pip install -r requirements.txt
 
-      - name: Generate keys
+      - name: Generate multiple keys
         id: generate
         shell: pwsh
         run: |
           cd ESET-KeyGen
           $allKeys = @()
-          $keyCount = ${{ inputs.count }}
+          $keyCount = ${{ inputs.key_count }}
           
           Write-Output "Начинаем генерацию $keyCount ключей..."
           
-          # Генерируем указанное количество ключей
           for ($i = 1; $i -le $keyCount; $i++) {
               Write-Output "Генерация ключа #$i из $keyCount"
               
@@ -78,11 +77,9 @@ jobs:
                 --skip-update-check --no-logo `
                 --disable-progress-bar --disable-logging *>&1 > $outputFile
               
-              # Получаем последние 30 строк вывода
               $lastLines = Get-Content $outputFile | Select-Object -Last 30
               $content = $lastLines -join "`n"
               
-              # Ищем ключ в нескольких возможных форматах
               $patterns = @(
                   'License Key: ([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})',
                   'License Key: ([A-Z0-9]{15})',
@@ -103,23 +100,17 @@ jobs:
                   $allKeys += $licenseKey
               } else {
                   Write-Output "::warning::Ключ #$i не найден в выводе, пропускаем..."
-                  Write-Output "Последние 30 строк вывода:"
-                  Write-Output $content
-                  # Продолжаем генерацию остальных ключей вместо выхода
                   continue
               }
               
-              # Небольшая пауза между генерациями
               Start-Sleep -Seconds 2
           }
           
-          # Сохраняем все ключи в переменную
           if ($allKeys.Count -gt 0) {
               $keysJson = $allKeys | ConvertTo-Json -Compress
               echo "ALL_KEYS=$keysJson" >> $env:GITHUB_ENV
               echo "TOTAL_KEYS=$($allKeys.Count)" >> $env:GITHUB_ENV
-              echo "REQUESTED_KEYS=$keyCount" >> $env:GITHUB_ENV
-              Write-Output "Успешно сгенерировано ключей: $($allKeys.Count) из запрошенных $keyCount"
+              Write-Output "Успешно сгенерировано ключей: $($allKeys.Count) из $keyCount"
           } else {
               echo "::error::Не удалось сгенерировать ни одного ключа"
               exit 1
@@ -129,30 +120,23 @@ jobs:
         if: success()
         shell: pwsh
         run: |
-          # Преобразуем JSON обратно в массив
           $keysArray = $env:ALL_KEYS | ConvertFrom-Json
           $totalKeys = $env:TOTAL_KEYS
-          $requestedKeys = $env:REQUESTED_KEYS
           
-          # Формируем красивое сообщение со всеми ключами
-          if ($totalKeys -eq $requestedKeys) {
-              $messageText = "✅ Успешно сгенерировано $totalKeys ключей ESET Smart Security Premium:`n`n"
+          if ($totalKeys -eq ${{ inputs.key_count }}) {
+              $messageText = "✅ Успешно сгенерировано $totalKeys ключей ESET:`n`n"
           } else {
-              $messageText = "⚠️ Сгенерировано $totalKeys из $requestedKeys запрошенных ключей ESET:`n`n"
+              $messageText = "⚠️ Сгенерировано $totalKeys из ${{ inputs.key_count }} ключей ESET:`n`n"
           }
           
-          $counter = 1
           foreach ($key in $keysArray) {
               $messageText += "`<code>$key</code>`n"
-              $counter++
           }
           
-          $messageText += "`n📅 Сгенерировано: $(Get-Date -Format 'dd.MM.yyyy')`n"
-          $messageText += "Создано с помощью бота @EsetgenBot."
+          $messageText += "`n📅 $(Get-Date -Format 'dd.MM.yyyy')`n@EsetgenBot"
           
           $url = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
           
-          # Клавиатура с кнопкой благодарности
           $replyMarkup = '{
             "inline_keyboard": [
               [
@@ -173,21 +157,16 @@ jobs:
           
           try {
               $response = Invoke-RestMethod -Uri $url -Method Post -Body $body -ErrorAction Stop
-              Write-Output "Сообщение с $totalKeys ключами успешно отправлено!"
+              Write-Output "Сообщение с $totalKeys ключами отправлено!"
           } catch {
-              Write-Output "::error::Ошибка при отправке сообщения: $_"
-              
-              # Дополнительно выводим ключи в консоль на случай ошибки Telegram
-              Write-Output "Сгенерированные ключи:"
+              Write-Output "::error::Ошибка отправки: $_"
               $keysArray | ForEach-Object { Write-Output "Ключ: $_" }
-              
               exit 1
           }
 
-      - name: Cleanup generated files
+      - name: Cleanup
         if: always()
         shell: pwsh
         run: |
           cd ESET-KeyGen
           Remove-Item -Path .\output_*.txt -ErrorAction SilentlyContinue
-          Write-Output "Временные файлы очищены"
