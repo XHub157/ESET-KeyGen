@@ -1,4 +1,4 @@
-name: ESET Key Generator 10
+name: ESET Key Generator
 
 on:
   workflow_dispatch:
@@ -17,6 +17,22 @@ on:
           - incognitomail
           - emailfake
         default: emailfake
+      key_count:
+        description: 'Number of keys to generate (1-10)'
+        required: true
+        type: choice
+        options:
+           - 1,
+           - 2,
+           - 3,
+           - 4,
+           - 5,
+           - 6,
+           - 7,
+           - 8,
+           - 9,
+           - 10,
+        default: '10'
       user_chat_id:
         description: 'Telegram chat ID'
         required: true
@@ -42,16 +58,19 @@ jobs:
           python -m venv venv
           .\venv\Scripts\pip install -r requirements.txt
 
-      - name: Generate 10 keys
+      - name: Generate keys
         id: generate
         shell: pwsh
         run: |
           cd ESET-KeyGen
           $allKeys = @()
+          $keyCount = ${{ inputs.key_count }}
           
-          # Генерируем 10 ключей
-          for ($i = 1; $i -le 10; $i++) {
-              Write-Output "Генерация ключа #$i"
+          Write-Output "Начинаем генерацию $keyCount ключей..."
+          
+          # Генерируем указанное количество ключей
+          for ($i = 1; $i -le $keyCount; $i++) {
+              Write-Output "Генерация ключа #$i из $keyCount"
               
               $outputFile = ".\output_$i.txt"
               .\venv\Scripts\python main.py --auto-detect-browser --key `
@@ -83,7 +102,7 @@ jobs:
                   Write-Output "Найден ключ #$i : $licenseKey"
                   $allKeys += $licenseKey
               } else {
-                  Write-Output "::error::Ключ #$i не найден в выводе"
+                  Write-Output "::warning::Ключ #$i не найден в выводе, пропускаем..."
                   Write-Output "Последние 30 строк вывода:"
                   Write-Output $content
                   # Продолжаем генерацию остальных ключей вместо выхода
@@ -99,7 +118,8 @@ jobs:
               $keysJson = $allKeys | ConvertTo-Json -Compress
               echo "ALL_KEYS=$keysJson" >> $env:GITHUB_ENV
               echo "TOTAL_KEYS=$($allKeys.Count)" >> $env:GITHUB_ENV
-              Write-Output "Успешно сгенерировано ключей: $($allKeys.Count)"
+              echo "REQUESTED_KEYS=$keyCount" >> $env:GITHUB_ENV
+              Write-Output "Успешно сгенерировано ключей: $($allKeys.Count) из запрошенных $keyCount"
           } else {
               echo "::error::Не удалось сгенерировать ни одного ключа"
               exit 1
@@ -112,9 +132,14 @@ jobs:
           # Преобразуем JSON обратно в массив
           $keysArray = $env:ALL_KEYS | ConvertFrom-Json
           $totalKeys = $env:TOTAL_KEYS
+          $requestedKeys = $env:REQUESTED_KEYS
           
           # Формируем красивое сообщение со всеми ключами
-          $messageText = "✅ **Успешно сгенерировано $totalKeys ключей ESET Smart Security Premium:**`n`n"
+          if ($totalKeys -eq $requestedKeys) {
+              $messageText = "✅ **Успешно сгенерировано $totalKeys ключей ESET Smart Security Premium:**`n`n"
+          } else {
+              $messageText = "⚠️ **Сгенерировано $totalKeys из $requestedKeys запрошенных ключей ESET:**`n`n"
+          }
           
           $counter = 1
           foreach ($key in $keysArray) {
@@ -122,7 +147,7 @@ jobs:
               $counter++
           }
           
-          $messageText += "📅 **Сгенерировано:** $(Get-Date -Format 'dd.MM.yyyy')`n"
+          $messageText += "`n📅 **Сгенерировано:** $(Get-Date -Format 'dd.MM.yyyy')`n"
           $messageText += "📢 **Канал разработчика:** @EsetForYou`n"
           $messageText += "🌟 **Канал спонсора:** @keys_eset2020`n`n"
           $messageText += "_Сохраните эти ключи в надежном месте!_"
