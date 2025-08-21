@@ -80,7 +80,7 @@ jobs:
               }
               
               if ($licenseKey) {
-                  Write-Output "Найден ключ #$i: $licenseKey"
+                  Write-Output "Найден ключ #$i : $licenseKey"
                   $allKeys += $licenseKey
               } else {
                   Write-Output "::error::Ключ #$i не найден в выводе"
@@ -124,7 +124,8 @@ jobs:
           
           $messageText += "📅 *Сгенерировано:* $(Get-Date -Format 'dd.MM.yyyy HH:mm')`n"
           $messageText += "📢 *Канал разработчика:* @EsetForYou`n"
-          $messageText += "🌟 *Канал спонсора:* @keys_eset2020`n`"
+          $messageText += "🌟 *Канал спонсора:* @keys_eset2020`n`n"
+          $messageText += "_При копировании ключей не забывайте указывать источник!_"
           
           $url = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
           
