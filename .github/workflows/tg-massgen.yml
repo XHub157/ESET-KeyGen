@@ -17,7 +17,7 @@ on:
           - incognitomail
           - emailfake
         default: emailfake
-      key_count:
+      count:
         description: 'Number of keys to generate (1-10)'
         required: true
         type: choice
@@ -64,7 +64,7 @@ jobs:
         run: |
           cd ESET-KeyGen
           $allKeys = @()
-          $keyCount = ${{ inputs.key_count }}
+          $keyCount = ${{ inputs.count }}
           
           Write-Output "Начинаем генерацию $keyCount ключей..."
           
