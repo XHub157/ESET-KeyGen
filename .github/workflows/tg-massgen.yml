@@ -133,7 +133,7 @@ jobs:
               $messageText += "`<code>$key</code>`n"
           }
           
-          $messageText += "`n📅 $(Get-Date -Format 'dd.MM.yyyy')`n@EsetgenBot"
+          $messageText += "`n📅Сгенерировано $(Get-Date -Format 'dd.MM.yyyy')`n@EsetgenBot"
           
           $url = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
           
