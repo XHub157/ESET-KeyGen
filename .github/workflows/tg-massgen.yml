@@ -1,4 +1,4 @@
-name: ESET Key Generator
+name: ESET Key Generator 10
 
 on:
   workflow_dispatch:
