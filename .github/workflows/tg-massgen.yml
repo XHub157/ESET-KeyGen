@@ -118,14 +118,14 @@ jobs:
           
           $counter = 1
           foreach ($key in $keysArray) {
-              $messageText += "`<code\>$key\</code\>`n`n"
+              $messageText += "`<code>$key</code>`n`n"
               $counter++
           }
           
           $messageText += "📅 *Сгенерировано:* $(Get-Date -Format 'dd.MM.yyyy HH:mm')`n"
           $messageText += "📢 *Канал разработчика:* @EsetForYou`n"
           $messageText += "🌟 *Канал спонсора:* @keys_eset2020`n`n"
-          $messageText += "_При копировании ключей не забывайте указывать источник!_"
+          $messageText += "_Сохраните эти ключи в надежном месте!_"
           
           $url = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
           
