@@ -136,9 +136,9 @@ jobs:
           
           # Формируем красивое сообщение со всеми ключами
           if ($totalKeys -eq $requestedKeys) {
-              $messageText = "✅ **Успешно сгенерировано $totalKeys ключей ESET Smart Security Premium:**`n`n"
+              $messageText = "✅ Успешно сгенерировано $totalKeys ключей ESET Smart Security Premium:`n`n"
           } else {
-              $messageText = "⚠️ **Сгенерировано $totalKeys из $requestedKeys запрошенных ключей ESET:**`n`n"
+              $messageText = "⚠️ Сгенерировано $totalKeys из $requestedKeys запрошенных ключей ESET:`n`n"
           }
           
           $counter = 1
@@ -148,9 +148,7 @@ jobs:
           }
           
           $messageText += "`n📅 **Сгенерировано:** $(Get-Date -Format 'dd.MM.yyyy')`n"
-          $messageText += "📢 **Канал разработчика:** @EsetForYou`n"
-          $messageText += "🌟 **Канал спонсора:** @keys_eset2020`n`n"
-          $messageText += "_Сохраните эти ключи в надежном месте!_"
+          $messageText += "Сохраните эти ключи в надежном месте!"
           
           $url = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
           
