@@ -148,7 +148,7 @@ jobs:
           }
           
           $messageText += "`n📅 **Сгенерировано:** $(Get-Date -Format 'dd.MM.yyyy')`n"
-          $messageText += "Сохраните эти ключи в надежном месте!"
+          $messageText += "Сгенерировано с помощью бота @EsetgenBot."
           
           $url = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
           
