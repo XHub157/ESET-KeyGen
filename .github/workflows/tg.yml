@@ -87,12 +87,14 @@ jobs:
         if: success()
         shell: pwsh
         run: |
-          # Формируем сообщение с HTML разметкой для надежности
+          # Формируем сообщение с Markdown разметкой (лучше для эмодзи)
           $messageText = "🎉 *Ваш ключ ESET Smart Security Premium:*`n`n"
-          $messageText += "🔑 `<code>$env:LICENSE_KEY</code>`n`n"
+          $messageText += "🔑 `$env:LICENSE_KEY`n`n"
           $messageText += "📅 *Сгенерировано:* $(Get-Date -Format 'dd.MM.yyyy')`n"
           $messageText += "👨‍💻 *Канал разработчика:* @EsetForYou`n"
           $messageText += "🌟 *Канал спонсора:* @keys_eset2020`n`n"
+          $messageText += "_Спасибо за использование нашего сервиса!_"
+          
           $url = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
           
           # Правильное формирование клавиатуры в формате JSON
@@ -100,7 +102,7 @@ jobs:
             "inline_keyboard": [
               [
                 {
-                  "text": "Сказать спасибо🙏",
+                  "text": "Сказать спасибо 🙏",
                   "url": "https://t.me/+Uuz-Y1r_zIuPdkv9"
                 }
               ]
