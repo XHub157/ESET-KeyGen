@@ -28,17 +28,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Clone ESET-KeyGen
+      - name: Clone etkg
         shell: pwsh
         run: |
-          git clone -b main https://github.com/XHub157/ESET-KeyGen
-          cd ESET-KeyGen
+          git clone -b main https://github.com/shadowcopyrz/etkg
+          cd etkg
           Remove-Item -Path .\*KEYS.txt -ErrorAction SilentlyContinue
 
       - name: Setup environment
         shell: pwsh
         run: |
-          cd ESET-KeyGen
+          cd etkg
           python -m venv venv
           .\venv\Scripts\pip install -r requirements.txt
 
@@ -46,7 +46,7 @@ jobs:
         id: generate
         shell: pwsh
         run: |
-          cd ESET-KeyGen
+          cd etkg
           $outputFile = ".\output.txt"
           .\venv\Scripts\python main.py --auto-detect-browser --key `
             --email-api "${{ inputs.mail }}" `
@@ -87,13 +87,8 @@ jobs:
         if: success()
         shell: pwsh
         run: |
-          # Формируем сообщение с Markdown разметкой (лучше для эмодзи)
-          $messageText = "🎉 *Ваш ключ ESET Smart Security Premium:*`n`n"
-          $messageText += "🔑 `$env:LICENSE_KEY`n`n"
-          $messageText += "📅 *Сгенерировано:* $(Get-Date -Format 'dd.MM.yyyy')`n"
-          $messageText += "👨‍💻 *Канал разработчика:* @EsetForYou`n"
-          $messageText += "🌟 *Канал спонсора:* @keys_eset2020`n`n"
-          $messageText += "_Спасибо за использование нашего сервиса!_"
+          # Формируем сообщение с HTML разметкой для надежности
+          $messageText = "Ваш ключ ESET Smart Security Premium:`n`n<code>$env:LICENSE_KEY</code>`n`nСгенерировано: $(Get-Date -Format 'dd.MM.yyyy')`nКанал разработчика: @EsetForYou`nКанал спонсора: @keys_eset2020"
           
           $url = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
           
@@ -102,7 +97,7 @@ jobs:
             "inline_keyboard": [
               [
                 {
-                  "text": "Сказать спасибо 🙏",
+                  "text": "Сказать спасибо🙏",
                   "url": "https://t.me/+Uuz-Y1r_zIuPdkv9"
                 }
               ]
@@ -112,7 +107,7 @@ jobs:
           $body = @{
               chat_id = "${{ inputs.user_chat_id }}"
               text = $messageText
-              parse_mode = "MarkdownV2"
+              parse_mode = "HTML"
               reply_markup = $replyMarkup
           }
           
